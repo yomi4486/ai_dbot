@@ -1,0 +1,5 @@
+discord
+dotenv
+requests
+openai
+translate
