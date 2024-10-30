@@ -1,0 +1,10 @@
+pillow
+yaml
+requests
+python-dotenv
+discord
+urlextract
+openai==0.26.5
+googletrans==3.1.0a0
+beautifulsoup4
+asyncio

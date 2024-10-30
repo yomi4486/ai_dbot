@@ -1,0 +1,7 @@
+version: "3"
+services:
+    c_base_env:
+      build:
+        context: experiment/c/
+        dockerfile: Dockerfile
+      image: c_base_env:dev

@@ -1,0 +1,7 @@
+version: "3"
+services:
+    c_base_env:
+      build:
+        context: .
+        dockerfile: Dockerfile
+      image: alpine3.14

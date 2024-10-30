@@ -1,0 +1,9 @@
+version: "3"
+services:
+    AI_environ_NodeJS:
+      build:
+        context: experiment/NodeJS/
+        dockerfile: Dockerfile
+      # env_file: 
+      # - .env
+      image: node:alpine
