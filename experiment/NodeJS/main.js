@@ -1,1 +1,4 @@
-[]['at']['constructor']('console.info("\\112\\123\\106\\52\\52\\153");')()
+class 印刷:
+  def __init__(self,text):
+    print(text)
+印刷("こんにちは、世界！")

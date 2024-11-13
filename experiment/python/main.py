@@ -1,1 +1,3 @@
-print(__spec__)
+text = "こんにちは"
+for i in text:
+  print(i)

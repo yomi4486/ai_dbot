@@ -144,6 +144,12 @@ class MyView(discord.ui.View):
 async def disconnect(message):
     await message.guild.voice_client.disconnect()
 
+def half_num_to_full(text:str):
+    num_list = ["０","１","２","３","４","５","６","７","８","９"]
+    for i in num_list:
+        text = text.replace(i,f"{int(i)}")
+    return text
+
 def translate_ignore_code(base_text:str,mode:str):
     """
     バッククオートで囲まれたコードや固有名詞を除外して翻訳を行う関数です
@@ -152,7 +158,7 @@ def translate_ignore_code(base_text:str,mode:str):
     code_list = re.findall(r'```(.*?)```',f"{base_text}",re.DOTALL) # コードがある場合は検出し、抜き出す
 
     hoge0 = ["a","b","c","d","e","f","g","h","i","j"]
-    hoge1 = ["k","l","m","n","o","p","q","r","s","t","u","v","w","x","z"]
+    hoge1 = ["k","l","m","n","o","p","q","r","s","t","u","v","w","x","z","a1","a2","a3","a4","a5","a6","a7","a8","a9","a0"]
     p1 = 0 # カウント用の仮の変数
     for i in code_list:
         base_text = base_text.replace(f"```{i}```",f"__{hoge0[p1]}__") # コードを仮文字に置き換える
@@ -174,7 +180,7 @@ def translate_ignore_code(base_text:str,mode:str):
         translated_text = res["translations"][0]["text"]
     except:
         translated_text = translator.translate(base_text,dest=mode).text
-    translated_text = str(translated_text).replace("＆","&") # 仮文字のが全角になることがあるため対策
+    translated_text = half_num_to_full(str(translated_text).replace("＆","&")) # 仮文字のが全角になることがあるため対策
     p3 = 0 # 初期化
     for i in code_list:
         translated_text = translated_text.replace(f"__{hoge0[p3]}__",f"```{i}```\n-# AIによって生成されたコードです。慎重にご利用ください。\n").replace(f"__{str(hoge0[p3]).upper()}__",f"```{i}```\n-# AIによって生成されたコードです。慎重にご利用ください。\n") # 翻訳時に仮文字が大文字になることがあるので、修正
