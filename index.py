@@ -409,7 +409,12 @@ async def on_message(message):
                     jp_result = translate_ignore_code(result,"ja")
                 except Exception as e:
                     print(e)
+                    exception_type, exception_object, exception_traceback = sys.exc_info()
+                    filename = exception_traceback.tb_frame.f_code.co_filename
+                    line_no = exception_traceback.tb_lineno
                     jp_result = result
+                    print(f"{filename}の{line_no}行目でエラーが発生しました。詳細：{e}")
+
             if ("違法" in jp_result and "有害" in jp_result) or ("露骨" in jp_result): # 有害な話題は打ち切る
                 kaiwa_dict.update({f"{message.author.name}":[]})
             try:
@@ -437,7 +442,7 @@ async def on_message(message):
                                 b+=l
                     await reply_message.edit(content=f"{a}")
                     if len(b)!=0:
-                        reply_message = await message.channel.send(content=f"{b}")
+                        reply_message = await message.channel.send(content=f"{b[:2000]}")
                 else:    
                     await reply_message.edit(content=jp_result)
                 await reply_message.add_reaction("👍")
