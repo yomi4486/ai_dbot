@@ -12,6 +12,8 @@ from googletrans import Translator
 from logging import StreamHandler,getLogger
 from webContent import get_content#,get_wikipedia_description
 from daruemon_docker import compose_container
+import concurrent.futures
+
 logger = getLogger(__name__)
 handler = StreamHandler()
 logger.addHandler(handler)
@@ -58,7 +60,7 @@ tree = app_commands.CommandTree(client)
 translator = Translator()
 extractor = URLExtract()
 
-def get_completion(message:list,ja_prompt:str=""):
+async def get_completion(message:list,ja_prompt:str=""):
     
     # wiki_word_list = f''
     # j={}
@@ -83,13 +85,17 @@ def get_completion(message:list,ja_prompt:str=""):
     #     messages.append(j)
     # else:
     #     messages = message
-
-    response = openAI_client.chat.completions.create(
-        model=f"{os.environ.get('model')}",
-        messages=message,
-        temperature=0 # this is the degree of randomness of the model's output
-    )
-    return response.choices[0].message.content
+    def get_res():
+        response = openAI_client.chat.completions.create(
+            model=f"{os.environ.get('model')}",
+            messages=message,
+            temperature=0 # this is the degree of randomness of the model's output
+        )
+        return response.choices[0].message.content
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(get_res)
+        completion = future.result()
+        return completion
 
 async def kaiwa_dict_update(message,msg,user_prompt:str,log_dict:dict,code_list:list,lang_mode:int=0):
     """
@@ -123,12 +129,12 @@ async def kaiwa_dict_update(message,msg,user_prompt:str,log_dict:dict,code_list:
             kaiwa_dict[f"{message.author.name}"].append({"role":"user","content":user_prompt})
         if not len(code_list) == 0 and not lang_mode == -1:
             kaiwa_dict[f"{message.author.name}"].append({"role":"user","content":f"This is the result of executing the code written by the user on the system below. Please use it to give advice to users. Language:{lang_list[lang_mode]} \nversion:{lang_param[f'{str(lang_list[lang_mode]).lower()}']['version']} \nexit_code{log_dict['exit_code']}({log_dict['status_label']})\nlogs:\n```{log_dict['logs'][:1000]}```"})
-        result = get_completion(kaiwa_dict[f"{message.author.name}"],ja_prompt=ja_user_prompt)
+        result = await get_completion(kaiwa_dict[f"{message.author.name}"],ja_prompt=ja_user_prompt)
     else:
         if msg.author.id == APPLICATION_ID:
-            result = get_completion([{"role":"assistant","content":f"{msg.content}"},{"role":"user","content":user_prompt}],ja_prompt=ja_user_prompt)
+            result = await get_completion([{"role":"assistant","content":f"{msg.content}"},{"role":"user","content":user_prompt}],ja_prompt=ja_user_prompt)
         else:
-            result = get_completion([{"role":"system","content":f"{msg.content}\nThe message is created by '{msg.author.display_name}'."},{"role":"user","content":user_prompt}],ja_prompt=ja_user_prompt)
+            result = await get_completion([{"role":"system","content":f"{msg.content}\nThe message is created by '{msg.author.display_name}'."},{"role":"user","content":user_prompt}],ja_prompt=ja_user_prompt)
         if not f"{message.author.name}" in kaiwa_dict :
             kaiwa_dict.update({f"{message.author.name}":[{"role":"assistant","content":result}]})
         else:
@@ -343,7 +349,7 @@ async def on_message(message):
                         else:
                             user_prompt = translator.translate(user_prompt,dest='en').text
 
-                        result = get_completion([{"role":"system","content":f"{res}"},{"role":"user","content":user_prompt}])
+                        result = await get_completion([{"role":"system","content":f"{res}"},{"role":"user","content":user_prompt}])
 
                         await msg.edit(content=translate_ignore_code(result,"ja"))
                     else:
