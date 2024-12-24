@@ -290,7 +290,7 @@ async def test_command(interaction: discord.Interaction):
         await interaction.response.send_message(content="このコマンドは開発者限定です。",ephemeral=True)
 
 @client.event
-async def on_message(message):
+async def on_message(message:discord.Message):
     if message.author.bot : return
     try:
         client.get_user(int(message.author.id))
@@ -309,6 +309,13 @@ async def on_message(message):
             if message.guild.voice_client is None:
                 await message.author.voice.channel.connect()
                 message.guild.voice_client.play(discord.FFmpegPCMAudio(f'./source/daruemon.wav'),after= lambda e: asyncio.run_coroutine_threadsafe(disconnect(message), client.loop))
+                return
+            
+    if 'ころすぞ' in message.content or '殺すぞ' in message.content:
+        if not message.author.voice is None:
+            if message.guild.voice_client is None:
+                await message.author.voice.channel.connect()
+                message.guild.voice_client.play(discord.FFmpegPCMAudio(f'./source/korosuzo.mp4'),after= lambda e: asyncio.run_coroutine_threadsafe(disconnect(message), client.loop))
                 return
             
     if 'ずるずる' in message.content:
