@@ -2,7 +2,7 @@
 エナジー教授
 ./index.py
 """
-import ocr,os,asyncio,re,discord,datetime,requests,imageCreater,json,sys,math
+import ocr,os,asyncio,re,discord,datetime,requests,imageCreater,json,sys,math,threading
 from urlextract import URLExtract
 from discord import app_commands
 from os.path import join, dirname
@@ -327,142 +327,144 @@ async def on_message(message:discord.Message):
                 return
 
     if f'<@{APPLICATION_ID}>' in message.content or not message.guild:
-        msg = None
-        try:
-            msg = await message.channel.fetch_message(message.reference.message_id)
-        except:
-            pass
-        finally:
-            user_prompt = str(message.content.replace(f'<@{APPLICATION_ID}> ','').replace(f'<@{APPLICATION_ID}>',''))
-            
-            # メンションのみだった場合はリソース削減のためメッセージのみ送信
-            if user_prompt == "" and not message.attachments:
-                await message.reply("こんにちは！私はAIアシスタントです。何かお手伝いできることがありますか？\n使い方がわからない場合は、`/help`を実行してください")
-                return
-            
-            code_list = re.findall(r'```(.*?)```',f"{user_prompt}",re.DOTALL)
-            log_dict = {}
-            lang_mode = 0
-            if len(code_list)== 0: # コードにURLが含まれていることもあるので、URLがコード内に含まれていた場合はそちらを優先
-                if 'https://' in user_prompt or 'http://' in user_prompt:
-                    url = extractor.find_urls(user_prompt)[0]
-                    msg = await message.reply(':robot: サイトのコンテンツを取得中です…')
-                    res = get_content(url)
-                    if res:
-                        await msg.edit(content=':robot: コンテンツの解析中です…')
-                        user_prompt = user_prompt.replace(url,"").replace(" ","").replace("\n","")
-                        if len(user_prompt) == 0: # メッセージの内容がURLだけだったら自動で要約してっていう
-                            user_prompt = "Please summarize this content" 
-                        else:
-                            user_prompt = translator.translate(user_prompt,dest='en').text
-
-                        result = await get_completion([{"role":"system","content":f"{res}"},{"role":"user","content":user_prompt}])
-
-                        await msg.edit(content=translate_ignore_code(result,"ja"))
-                    else:
-                        await msg.edit(content=f'`{url}`\nというURLは見つからないか、閲覧できない状態になっています。')
+        async def main():
+            msg = None
+            try:
+                msg = await message.channel.fetch_message(message.reference.message_id)
+            except:
+                pass
+            finally:
+                user_prompt = str(message.content.replace(f'<@{APPLICATION_ID}> ','').replace(f'<@{APPLICATION_ID}>',''))
+                
+                # メンションのみだった場合はリソース削減のためメッセージのみ送信
+                if user_prompt == "" and not message.attachments:
+                    await message.reply("こんにちは！私はAIアシスタントです。何かお手伝いできることがありますか？\n使い方がわからない場合は、`/help`を実行してください")
                     return
                 
-                if ('つくって' in user_prompt or 'かいて' in user_prompt or '描いて' in user_prompt or '作って' in user_prompt or '送って' in user_prompt) or ('画像' in user_prompt[-2:]):
-                    if f"{message.author.name}" in image_mode:
-                        if image_mode[f"{message.author.name}"]["disable"] == True:
-                            pass
+                code_list = re.findall(r'```(.*?)```',f"{user_prompt}",re.DOTALL)
+                log_dict = {}
+                lang_mode = 0
+                if len(code_list)== 0: # コードにURLが含まれていることもあるので、URLがコード内に含まれていた場合はそちらを優先
+                    if 'https://' in user_prompt or 'http://' in user_prompt:
+                        url = extractor.find_urls(user_prompt)[0]
+                        msg = await message.reply(':robot: サイトのコンテンツを取得中です…')
+                        res = get_content(url)
+                        if res:
+                            await msg.edit(content=':robot: コンテンツの解析中です…')
+                            user_prompt = user_prompt.replace(url,"").replace(" ","").replace("\n","")
+                            if len(user_prompt) == 0: # メッセージの内容がURLだけだったら自動で要約してっていう
+                                user_prompt = "Please summarize this content" 
+                            else:
+                                user_prompt = translator.translate(user_prompt,dest='en').text
+
+                            result = await get_completion([{"role":"system","content":f"{res}"},{"role":"user","content":user_prompt}])
+
+                            await msg.edit(content=translate_ignore_code(result,"ja"))
+                        else:
+                            await msg.edit(content=f'`{url}`\nというURLは見つからないか、閲覧できない状態になっています。')
+                        return
+                    
+                    if ('つくって' in user_prompt or 'かいて' in user_prompt or '描いて' in user_prompt or '作って' in user_prompt or '送って' in user_prompt) or ('画像' in user_prompt[-2:]):
+                        if f"{message.author.name}" in image_mode:
+                            if image_mode[f"{message.author.name}"]["disable"] == True:
+                                pass
+                            else:
+                                if await imageCreater.createImg(prompt=user_prompt,message=message) == 0: # 正常終了だった場合はリターン
+                                    return
                         else:
                             if await imageCreater.createImg(prompt=user_prompt,message=message) == 0: # 正常終了だった場合はリターン
                                 return
-                    else:
-                        if await imageCreater.createImg(prompt=user_prompt,message=message) == 0: # 正常終了だった場合はリターン
-                            return
 
-
-            if not len(code_list) == 0:
-                if '```py' in user_prompt.lower():
-                    lang_mode = 0
-                elif '```node' in user_prompt.lower():
-                    await message.reply(f"その言語には対応していません。(NodeJSの検証をする場合は、下記のように宣言してください。)\n\\```js\nコード\n\\```")
-                    return
-                elif '```js' in user_prompt.lower():
-                    lang_mode = 1
-                elif '```c' in user_prompt.lower():
-                    lang_mode = 2
-                else:
-                    lang_mode = -1
-                if not lang_mode == -1:
-                    fname = f"{lang_list[lang_mode].lower()}.png"
-                    file = discord.File(fp=f"./source/lang/{lang_list[lang_mode].lower()}.png",filename=fname,spoiler=False)
-                    embed = discord.Embed(title=f"{lang_list[lang_mode]}",description=f"Version: {lang_param[f'{str(lang_list[lang_mode]).lower()}']['version']}\nOS: {lang_param[f'{str(lang_list[lang_mode]).lower()}']['os']}")
-                    embed.set_thumbnail(url=f"attachment://{lang_list[lang_mode].lower()}.png")
-                    if "no-reply" in user_prompt.lower():
-                        in_code_alert = f"提供された{lang_list[lang_mode]}のコードを解析中です。(no-replyモード)"
-                        flag = 0
-                    else:
-                        in_code_alert = f"提供された{lang_list[lang_mode]}のコードを解析中です。"
-                        flag = 1
-                    kaisekityu = await message.reply(content=f"{in_code_alert}",file=file, embed=embed)
-                    log_dict = compose_container(mode=lang_mode,code=str(code_list[0]).replace(f"```{lang_list[lang_mode].lower()}","").replace("```",""),lib=[])
-                    exit_label = {"successful termination":"正常終了","Exception occurred":"異常終了","TimeOut":"タイムアウト"}
-                    if f"{log_dict['status_label']}" in exit_label:
-                        ja_exit_label = exit_label[log_dict['status_label']]
-                    else:
-                        ja_exit_label = f"{log_dict['status_label']}"
-                    await kaisekityu.edit(content=f"\n終了コード：{log_dict['exit_code']} ({ja_exit_label})\nログ：\n```{log_dict['logs'][:1900]}```")
-                    if flag == 0:
+                if not len(code_list) == 0:
+                    if '```py' in user_prompt.lower():
+                        lang_mode = 0
+                    elif '```node' in user_prompt.lower():
+                        await message.reply(f"その言語には対応していません。(NodeJSの検証をする場合は、下記のように宣言してください。)\n\\```js\nコード\n\\```")
                         return
-            reply_message = await message.reply("回答を生成中です...")
-            if '今日' in user_prompt:
-                dt_now = datetime.datetime.now()
-                week = weekday_list[dt_now.weekday()]
-                user_prompt = user_prompt.replace("今日",f"今日({dt_now.strftime('%Y年%m月%d日')} {week}曜日)")
-            result = await kaiwa_dict_update(message=message,msg=msg,user_prompt=user_prompt,log_dict=log_dict,code_list=code_list,lang_mode=lang_mode)
-            # 翻訳        
-            if f"{message.author.name}" in trans_mode and trans_mode[f"{message.author.name}"] == True:
-                jp_result = result
-            else:
+                    elif '```js' in user_prompt.lower():
+                        lang_mode = 1
+                    elif '```c' in user_prompt.lower():
+                        lang_mode = 2
+                    else:
+                        lang_mode = -1
+                    if not lang_mode == -1:
+                        fname = f"{lang_list[lang_mode].lower()}.png"
+                        file = discord.File(fp=f"./source/lang/{lang_list[lang_mode].lower()}.png",filename=fname,spoiler=False)
+                        embed = discord.Embed(title=f"{lang_list[lang_mode]}",description=f"Version: {lang_param[f'{str(lang_list[lang_mode]).lower()}']['version']}\nOS: {lang_param[f'{str(lang_list[lang_mode]).lower()}']['os']}")
+                        embed.set_thumbnail(url=f"attachment://{lang_list[lang_mode].lower()}.png")
+                        if "no-reply" in user_prompt.lower():
+                            in_code_alert = f"提供された{lang_list[lang_mode]}のコードを解析中です。(no-replyモード)"
+                            flag = 0
+                        else:
+                            in_code_alert = f"提供された{lang_list[lang_mode]}のコードを解析中です。"
+                            flag = 1
+                        kaisekityu = await message.reply(content=f"{in_code_alert}",file=file, embed=embed)
+                        log_dict = compose_container(mode=lang_mode,code=str(code_list[0]).replace(f"```{lang_list[lang_mode].lower()}","").replace("```",""),lib=[])
+                        exit_label = {"successful termination":"正常終了","Exception occurred":"異常終了","TimeOut":"タイムアウト"}
+                        if f"{log_dict['status_label']}" in exit_label:
+                            ja_exit_label = exit_label[log_dict['status_label']]
+                        else:
+                            ja_exit_label = f"{log_dict['status_label']}"
+                        await kaisekityu.edit(content=f"\n終了コード：{log_dict['exit_code']} ({ja_exit_label})\nログ：\n```{log_dict['logs'][:1900]}```")
+                        if flag == 0:
+                            return
+                reply_message = await message.reply("回答を生成中です...")
+                if '今日' in user_prompt:
+                    dt_now = datetime.datetime.now()
+                    week = weekday_list[dt_now.weekday()]
+                    user_prompt = user_prompt.replace("今日",f"今日({dt_now.strftime('%Y年%m月%d日')} {week}曜日)")
+                result = await kaiwa_dict_update(message=message,msg=msg,user_prompt=user_prompt,log_dict=log_dict,code_list=code_list,lang_mode=lang_mode)
+                # 翻訳        
+                if f"{message.author.name}" in trans_mode and trans_mode[f"{message.author.name}"] == True:
+                    jp_result = result
+                else:
+                    try:
+                        jp_result = translate_ignore_code(result,"ja")
+                    except Exception as e:
+                        print(e)
+                        exception_type, exception_object, exception_traceback = sys.exc_info()
+                        filename = exception_traceback.tb_frame.f_code.co_filename
+                        line_no = exception_traceback.tb_lineno
+                        jp_result = result
+                        print(f"{filename}の{line_no}行目でエラーが発生しました。詳細：{e}")
+
+                if ("違法" in jp_result and "有害" in jp_result) or ("露骨" in jp_result): # 有害な話題は打ち切る
+                    kaiwa_dict.update({f"{message.author.name}":[]})
                 try:
-                    jp_result = translate_ignore_code(result,"ja")
+                    res_code_list = re.findall(r'```.*?```',f"{jp_result}",re.DOTALL)
+                    a=""
+                    b=""
+                    if len(jp_result) >=2000: 
+                        if len(res_code_list) !=0:
+                            for i in res_code_list:
+                                jp_result = jp_result.replace(i,f"$^{i}")
+                            text_list = jp_result.split("$^")
+                            for l in text_list:
+                                if not len(a+l) >=2000:
+                                    a+=l
+                                else:
+                                    b+=l
+                            a=a.replace("$^","")
+                            b=b.replace("$^","")
+                        else:
+                            text_list = jp_result.splitlines(keepends=True)
+                            for l in text_list:
+                                if not len(a+l) >= 2000:
+                                    a+=l
+                                else:
+                                    b+=l
+                        await reply_message.edit(content=f"{a}")
+                        if len(b)!=0:
+                            reply_message = await message.channel.send(content=f"{b[:2000]}")
+                    else:    
+                        await reply_message.edit(content=jp_result)
+                    await reply_message.add_reaction("👍")
+                    await reply_message.add_reaction("👎")
                 except Exception as e:
                     print(e)
-                    exception_type, exception_object, exception_traceback = sys.exc_info()
-                    filename = exception_traceback.tb_frame.f_code.co_filename
-                    line_no = exception_traceback.tb_lineno
-                    jp_result = result
-                    print(f"{filename}の{line_no}行目でエラーが発生しました。詳細：{e}")
+                    await reply_message.edit(content="問題が発生したため、回答を生成できませんでした。")
+        threading.Thread(target=lambda:asyncio.run_coroutine_threadsafe(main(),client.loop)).start()
 
-            if ("違法" in jp_result and "有害" in jp_result) or ("露骨" in jp_result): # 有害な話題は打ち切る
-                kaiwa_dict.update({f"{message.author.name}":[]})
-            try:
-                res_code_list = re.findall(r'```.*?```',f"{jp_result}",re.DOTALL)
-                a=""
-                b=""
-                if len(jp_result) >=2000: 
-                    if len(res_code_list) !=0:
-                        for i in res_code_list:
-                            jp_result = jp_result.replace(i,f"$^{i}")
-                        text_list = jp_result.split("$^")
-                        for l in text_list:
-                            if not len(a+l) >=2000:
-                                a+=l
-                            else:
-                                b+=l
-                        a=a.replace("$^","")
-                        b=b.replace("$^","")
-                    else:
-                        text_list = jp_result.splitlines(keepends=True)
-                        for l in text_list:
-                            if not len(a+l) >= 2000:
-                                a+=l
-                            else:
-                                b+=l
-                    await reply_message.edit(content=f"{a}")
-                    if len(b)!=0:
-                        reply_message = await message.channel.send(content=f"{b[:2000]}")
-                else:    
-                    await reply_message.edit(content=jp_result)
-                await reply_message.add_reaction("👍")
-                await reply_message.add_reaction("👎")
-            except Exception as e:
-                print(e)
-                await reply_message.edit(content="問題が発生したため、回答を生成できませんでした。")
 @client.event
 async def on_raw_reaction_add(payload):
     emoji_list = {"👎":"bad","👍":"good"}
