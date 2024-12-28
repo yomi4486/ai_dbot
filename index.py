@@ -97,7 +97,7 @@ async def get_completion(message:list,ja_prompt:str=""):
         completion = future.result()
         return completion
 
-async def kaiwa_dict_update(message,msg,user_prompt:str,log_dict:dict,code_list:list,lang_mode:int=0):
+async def kaiwa_dict_update(message:discord.Message,msg,user_prompt:str,log_dict:dict,code_list:list,lang_mode:int=0):
     """
     message:Discord messageオブジェクト
     msg:リプライ元のメッセージ
@@ -147,7 +147,7 @@ class MyView(discord.ui.View):
         # URLを含むボタンを作成
         self.add_item(discord.ui.Button(label=f"{label}", url=f"{url}"))
 
-async def disconnect(message):
+async def disconnect(message:discord.Message):
     await message.guild.voice_client.disconnect()
 
 def half_num_to_full(text:str):
@@ -466,7 +466,7 @@ async def on_message(message:discord.Message):
         threading.Thread(target=lambda:asyncio.run_coroutine_threadsafe(main(),client.loop)).start()
 
 @client.event
-async def on_raw_reaction_add(payload):
+async def on_raw_reaction_add(payload:discord.Reaction):
     emoji_list = {"👎":"bad","👍":"good"}
     if f"{payload.emoji}" in emoji_list: # グッドとバッド以外のリアクションは無視
         try:
