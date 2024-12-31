@@ -9,7 +9,7 @@ load_dotenv(dotenv_path)
 
 imageapi_base_url = os.environ.get("imageapi_base_url")
 
-async def createImg(prompt:str,message):
+async def createImg(prompt:str,message:discord.Message):
     """
     promptに、プロンプト
     messageにDiscordのmessageオブジェクト
@@ -57,7 +57,10 @@ async def createImg(prompt:str,message):
         with open(f"./imageCreater/result/{filename}.png", 'wb') as f:
             f.write(base64.b64decode(r['images'][0]))
         await msg.delete()
-        await message.reply('',file=discord.File(f'./imageCreater/result/{filename}.png'))
+        reply_message = await message.reply('',file=discord.File(f'./imageCreater/result/{filename}.png'))
+        await reply_message.add_reaction("👍")
+        await reply_message.add_reaction("👎")
+        await reply_message.add_reaction("🗑️")
         os.remove(f'./imageCreater/result/{filename}.png')
         return 0
 

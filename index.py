@@ -500,6 +500,11 @@ async def on_raw_reaction_add(payload:discord.Reaction):
             data_as_list.append(new_data)
             with open(f'feedback.json', 'w',encoding="utf-8") as f:
                 f.write(json.dumps(data_as_list, indent=4,ensure_ascii = False))
+    elif f"{payload.emoji}" == "🗑️":
+        txt_channel = client.get_channel(payload.channel_id)
+        message = await txt_channel.fetch_message(payload.message_id)
+        if message.attachments and payload.user_id != client.user.id:
+            await message.delete()
 
 if __name__ == "__main__":
     client.run(TOKEN)
