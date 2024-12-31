@@ -228,7 +228,6 @@ async def on_ready():
                     await channel.send(update_text,silent=True)
             else:
                 print("update.txtが見つかりません。")
-    
 
 @tree.command(name="help",description="Botの説明を表示します。")
 async def test_command(interaction: discord.Interaction):
@@ -243,12 +242,12 @@ async def test_command(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed,ephemeral=True)
 
 @tree.command(name="clear",description="会話履歴を削除します")
-async def test_command(interaction: discord.Interaction):
+async def clear_command(interaction: discord.Interaction):
     kaiwa_dict.update({f"{interaction.user.name}":[]})
     await interaction.response.send_message(content="会話をリセットしました！新しいトピックについて話しましょう！",ephemeral=True)
 
 @tree.command(name="translate",description="翻訳の有効・無効を切り替えます")
-async def test_command(interaction: discord.Interaction):
+async def translate_command(interaction: discord.Interaction):
     if not f"{interaction.user.name}" in trans_mode:
         trans_mode.update({f"{interaction.user.name}":False})
     if trans_mode[f"{interaction.user.name}"] == False:
@@ -260,7 +259,7 @@ async def test_command(interaction: discord.Interaction):
 
 
 @tree.command(name="create_img_config",description="画像生成の設定を変更します。")
-async def test_command(interaction: discord.Interaction,config:str):
+async def create_img_command(interaction: discord.Interaction,config:str):
     if not config in ["safe_mode","disable"]:
         await interaction.response.send_message(content=f"`config`は、`safe_mode`もしくは`disable`である必要があります。",ephemeral=True)
         return
@@ -275,7 +274,7 @@ async def test_command(interaction: discord.Interaction,config:str):
         await interaction.response.send_message(content=f"{mode_dict[f'{config}']}をオフにしました",ephemeral=True)
 
 @tree.command(name="translate_usage",description="DeepLエンジンの残り文字数を確認します（開発者限定コマンド）")
-async def test_command(interaction: discord.Interaction):
+async def translate_usage_command(interaction: discord.Interaction):
     if interaction.user.name == "yomi4486":
         params = {
             'auth_key':DEEPL_API_LEY
