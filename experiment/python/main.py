@@ -1,3 +1,1 @@
-# no-reply
-prompt = "hello! !generate "[len('!generate'):]
-print(prompt)
+print("hello New Year 2025")
