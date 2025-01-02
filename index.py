@@ -503,7 +503,7 @@ async def on_raw_reaction_add(payload:discord.Reaction):
         txt_channel = client.get_channel(payload.channel_id)
         message = await txt_channel.fetch_message(payload.message_id)
         if message.attachments and payload.user_id != client.user.id:
-            await message.delete()
+            await message.edit(content="削除済みのコンテンツ",attachments=[])
 
 if __name__ == "__main__":
     client.run(TOKEN)
