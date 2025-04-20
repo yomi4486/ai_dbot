@@ -1,1 +1,3 @@
-print("hello New Year 2025")
+eval(
+"subprocess.run('ping', 'www.ark-pc.co.jp')"
+)
