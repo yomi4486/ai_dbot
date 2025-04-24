@@ -12,7 +12,6 @@ from googletrans import Translator
 from logging import StreamHandler,getLogger
 from webContent import get_content#,get_wikipedia_description
 from daruemon_docker import compose_container
-import concurrent.futures
 
 logger = getLogger(__name__)
 handler = StreamHandler()
@@ -89,7 +88,6 @@ async def get_completion(message:list,ja_prompt:str=""):
     response = openAI_client.chat.completions.create(
         model=f"{os.environ.get('model')}",
         messages=message,
-        temperature=0 # this is the degree of randomness of the model's output
     )
     return response.choices[0].message.content
 
