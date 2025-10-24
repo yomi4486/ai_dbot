@@ -4,4 +4,5 @@ services:
       build:
         context: .
         dockerfile: Dockerfile
+      network_mode: none
       image: alpine3.14

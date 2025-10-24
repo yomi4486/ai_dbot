@@ -4,6 +4,7 @@ services:
       build:
         context: experiment/python/
         dockerfile: Dockerfile
+      network_mode: none
       # env_file: 
       # - .env
-      image: python_base_env:dev
+      image: python

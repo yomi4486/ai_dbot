@@ -5,3 +5,5 @@ imageCreater/result/*
 experiment/NodeJS/main.js
 experiment/C/main.c
 experiment/python/main.py
+
+*.pyc

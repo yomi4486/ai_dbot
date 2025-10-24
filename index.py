@@ -11,6 +11,7 @@ from openai import OpenAI # ローカルAPIとの通信に必須
 from googletrans import Translator
 from logging import StreamHandler,getLogger
 from webContent import get_content#,get_wikipedia_description
+from mcp.agent import run as mcp_run
 from daruemon_docker import compose_container
 
 logger = getLogger(__name__)
@@ -27,6 +28,9 @@ TOKEN = os.environ.get("TOKEN")
 APPLICATION_ID = os.environ.get("APPLICATION_ID")
 BASE_URL = os.environ.get("base_url")
 DEEPL_API_LEY = os.environ.get("DEEPL_API_KEY")
+
+# Global network disable flag: set DISABLE_NETWORK=1|true|yes in env to disable external network I/O
+DISABLE_NETWORK = os.environ.get("DISABLE_NETWORK", "").lower() in ("1", "true", "yes")
 
 trans_mode = {}
 image_mode = {}
@@ -88,10 +92,23 @@ async def get_completion(message:list,ja_prompt:str=""):
     response = openAI_client.chat.completions.create(
         model=f"{os.environ.get('model')}",
         messages=message,
+        extra_body={
+            "llm": {
+                "prediction": {
+                    "promptTemplate": {
+                        "jinjaPromptTemplate": {
+                            "bosToken": "<|im_start|>",
+                            "eosToken": "<|im_end|>",
+                            "inputConfig": {}
+                        }
+                    }
+                }
+            }
+        }
     )
     return response.choices[0].message.content
 
-async def kaiwa_dict_update(message:discord.Message,msg,user_prompt:str,log_dict:dict,code_list:list,lang_mode:int=0):
+async def kaiwa_dict_update(message:discord.Message,msg,user_prompt:str,log_dict:dict,code_list:list,lang_mode:int=0,system_context: str = None):
     """
     message:Discord messageオブジェクト
     msg:リプライ元のメッセージ
@@ -123,12 +140,22 @@ async def kaiwa_dict_update(message:discord.Message,msg,user_prompt:str,log_dict
             kaiwa_dict[f"{message.author.name}"].append({"role":"user","content":user_prompt})
         if not len(code_list) == 0 and not lang_mode == -1:
             kaiwa_dict[f"{message.author.name}"].append({"role":"user","content":f"This is the result of executing the code written by the user on the system below. Please use it to give advice to users. Language:{lang_list[lang_mode]} \nversion:{lang_param[f'{str(lang_list[lang_mode]).lower()}']['version']} \nexit_code{log_dict['exit_code']}({log_dict['status_label']})\nlogs:\n```{log_dict['logs'][:1000]}```"})
-        result = await get_completion(kaiwa_dict[f"{message.author.name}"],ja_prompt=ja_user_prompt)
+        # If an external system_context was provided (from MCP), prepend it as a system message
+        messages = list(kaiwa_dict[f"{message.author.name}"])
+        if system_context:
+            messages = [{"role": "system", "content": system_context}] + messages
+        result = await get_completion(messages,ja_prompt=ja_user_prompt)
     else:
         if msg.author.id == APPLICATION_ID:
-            result = await get_completion([{"role":"assistant","content":f"{msg.content}"},{"role":"user","content":user_prompt}],ja_prompt=ja_user_prompt)
+            base_msgs = [{"role":"assistant","content":f"{msg.content}"},{"role":"user","content":user_prompt}]
+            if system_context:
+                base_msgs = [{"role":"system","content": system_context}] + base_msgs
+            result = await get_completion(base_msgs,ja_prompt=ja_user_prompt)
         else:
-            result = await get_completion([{"role":"system","content":f"{msg.content}\nThe message is created by '{msg.author.display_name}'."},{"role":"user","content":user_prompt}],ja_prompt=ja_user_prompt)
+            base_msgs = [{"role":"system","content":f"{msg.content}\nThe message is created by '{msg.author.display_name}'."},{"role":"user","content":user_prompt}]
+            if system_context:
+                base_msgs = [{"role":"system","content": system_context}] + base_msgs
+            result = await get_completion(base_msgs,ja_prompt=ja_user_prompt)
         if not f"{message.author.name}" in kaiwa_dict :
             kaiwa_dict.update({f"{message.author.name}":[{"role":"assistant","content":result}]})
         else:
@@ -405,7 +432,29 @@ async def on_message(message:discord.Message):
                 dt_now = datetime.datetime.now()
                 week = weekday_list[dt_now.weekday()]
                 user_prompt = user_prompt.replace("今日",f"今日({dt_now.strftime('%Y年%m月%d日')} {week}曜日)")
-            result = await kaiwa_dict_update(message=message,msg=msg,user_prompt=user_prompt,log_dict=log_dict,code_list=code_list,lang_mode=lang_mode)
+            # Optionally call MCP to fetch additional context and pass as system prompt
+            system_context = None
+            try:
+                # Only run MCP for non-URL, non-code short-circuit messages to avoid heavy work
+                if len(code_list) == 0 and not ('https://' in user_prompt or 'http://' in user_prompt) and len(user_prompt.strip()) > 5:
+                    loop = asyncio.get_event_loop()
+                    # run mcp_run in executor to avoid blocking the event loop
+                    from functools import partial
+                    func = partial(mcp_run, user_prompt, 3, os.environ.get('model'))
+                    try:
+                        mcp_out = await loop.run_in_executor(None, func)
+                    except Exception as e:
+                        mcp_out = None
+                    if mcp_out and isinstance(mcp_out, dict):
+                        msgs = mcp_out.get('messages') or []
+                        for m in msgs:
+                            if m.get('role') == 'system' and m.get('content'):
+                                system_context = m.get('content')
+                                break
+            except Exception:
+                system_context = None
+
+            result = await kaiwa_dict_update(message=message,msg=msg,user_prompt=user_prompt,log_dict=log_dict,code_list=code_list,lang_mode=lang_mode,system_context=system_context)
             # 翻訳        
             if f"{message.author.name}" in trans_mode and trans_mode[f"{message.author.name}"] == True:
                 jp_result = result
