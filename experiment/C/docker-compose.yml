@@ -4,4 +4,5 @@ services:
       build:
         context: experiment/c/
         dockerfile: Dockerfile
+      network_mode: none
       image: c_base_env:dev

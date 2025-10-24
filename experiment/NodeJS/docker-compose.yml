@@ -4,6 +4,7 @@ services:
       build:
         context: experiment/NodeJS/
         dockerfile: Dockerfile
+      network_mode: none
       # env_file: 
       # - .env
       image: node:alpine

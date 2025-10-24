@@ -4,6 +4,7 @@ services:
       build:
         context: .
         dockerfile: Dockerfile
+      network_mode: none
       # env_file: 
       # - .env
       image: python:3.11-slim
