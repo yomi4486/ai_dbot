@@ -27,8 +27,8 @@ def build_prompt(query: str, context_items: List[Dict]) -> str:
     parts = ["参照データ:"]
     for i, it in enumerate(context_items, 1):
         parts.append(f"[{i}] {it.get('title') or 'No title'}\nURL: {it.get('url')}\n要約: {it.get('summary') or '(抽出失敗)'}\n")
-    parts.append("これらを参考に、簡潔に回答してください。回答の末尾に参照元の番号とURLを列挙してください。")
-    parts.append("質問: " + query)
+    parts.append("Please use these as a reference and answer concisely. Please list the reference number and URL at the end of your answer.")
+    parts.append("Question: " + query)
     return "\n\n".join(parts)
 
 
@@ -38,13 +38,13 @@ def build_system_message(context_items: List[Dict], max_items: int = 5) -> str:
     The message is intended to be passed as the `system` message to the LLM so the model
     treats the retrieved documents as authoritative context.
     """
-    parts = ["参照データ（システムコンテキスト）:\n"]
+    parts = ["Reference Data (System context):\n"]
     for i, it in enumerate(context_items[:max_items], 1):
         title = it.get("title") or "(No title)"
         url = it.get("url") or "(No url)"
         summary = it.get("summary") or "(抽出失敗)"
         parts.append(f"[{i}] {title}\nURL: {url}\n要約: {summary}\n")
-    parts.append("---\n注意: この情報を参照してからユーザーの質問に答えてください。情報の出典を回答末尾に記載してください。")
+    parts.append("---\nNote: Please refer to this information before answering the user's question. Please cite the source of the information at the end of your answer.")
     return "\n".join(parts)
 
 

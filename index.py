@@ -34,6 +34,8 @@ DISABLE_NETWORK = os.environ.get("DISABLE_NETWORK", "").lower() in ("1", "true",
 
 trans_mode = {}
 image_mode = {}
+# MCP mode per-user (default disabled)
+mcp_mode = {}
 kaiwa_dict = {}
 weekday_list = ["月","火","水","木","金","土","日"]
 lang_list = ["Python","NodeJS","C"] # 実行対応言語一覧
@@ -257,6 +259,7 @@ async def test_command(interaction: discord.Interaction):
     embed.add_field(name='コマンド', inline=False ,value='')
     embed.add_field(name='`/translate`', value='本アシスタントは日本ユーザー向けに機械翻訳をしています。文に違和感がある時はこのコマンドで翻訳の無効・有効を切り替えられます')
     embed.add_field(name='`/clear`', value='会話をリセットします。新しいトピックについて話しましょう！')
+    embed.add_field(name='`/mcp`', value='MCP（外部情報検索によるコンテキスト補強）の有効・無効を切り替えます（デフォルトは無効）')
     embed.add_field(name='`/help`', value='Botの説明を表示します。')
     embed.add_field(name='ヒント', inline=False ,value='・単語や固有名詞がなかなか伝わらないときは、ダブルクオーテーションで囲むといいよ！\n・「○○の画像を作って！」などと頼むと画像を作ってくれるよ！\n・URLを送信すると、そのサイトを要約してくれるよ！')
 
@@ -277,6 +280,20 @@ async def translate_command(interaction: discord.Interaction):
     else:
         trans_mode.update({f"{interaction.user.name}":False})
         await interaction.response.send_message(content="翻訳を有効にしました",ephemeral=True)
+
+
+@tree.command(name="mcp",description="MCPの有効・無効を切り替えます（デフォルトは無効）")
+async def mcp_command(interaction: discord.Interaction):
+    """Per-user toggle to enable/disable MCP context lookup. Default: disabled."""
+    if not f"{interaction.user.name}" in mcp_mode:
+        # default disabled
+        mcp_mode.update({f"{interaction.user.name}":False})
+    if mcp_mode[f"{interaction.user.name}"] == False:
+        mcp_mode.update({f"{interaction.user.name}":True})
+        await interaction.response.send_message(content="MCPを有効にしました（次回のメッセージから反映されます）",ephemeral=True)
+    else:
+        mcp_mode.update({f"{interaction.user.name}":False})
+        await interaction.response.send_message(content="MCPを無効にしました",ephemeral=True)
 
 
 @tree.command(name="create_img_config",description="画像生成の設定を変更します。")
@@ -436,7 +453,8 @@ async def on_message(message:discord.Message):
             system_context = None
             try:
                 # Only run MCP for non-URL, non-code short-circuit messages to avoid heavy work
-                if len(code_list) == 0 and not ('https://' in user_prompt or 'http://' in user_prompt) and len(user_prompt.strip()) > 5:
+                # and only if the user has enabled MCP via /mcp (default: disabled)
+                if len(code_list) == 0 and not ('https://' in user_prompt or 'http://' in user_prompt) and len(user_prompt.strip()) > 5 and mcp_mode.get(f"{message.author.name}", False):
                     loop = asyncio.get_event_loop()
                     # run mcp_run in executor to avoid blocking the event loop
                     from functools import partial
